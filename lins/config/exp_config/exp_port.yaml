@@ -15,9 +15,13 @@ nearest_feature_search_sq_dist: 25
 verbose: 0
 icp_freq: 1
 max_lidar_nums: 200000
-num_iter: 30
+num_iter: 15
 lidar_scale: 1
 lidar_std: 0.01
+voxel_size: 0.2
+use_ceres: 1
+loss_threshold: 1.0
+ceres_max_iter: 2
 
 # topic names
 imu_topic: "/imu/data"

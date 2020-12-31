@@ -152,6 +152,11 @@ extern V3D INIT_BW;
 extern V3D INIT_TBL;
 extern Q4D INIT_RBL;
 
+extern double VOXEL_SIZE;
+extern int USE_CERES;
+extern double LOSS_THRESHOLD;
+extern int CERES_MAX_ITER;
+
 void readParameters(ros::NodeHandle& n);
 
 void readV3D(cv::FileStorage* file, const std::string& name, V3D& vec_eigen);

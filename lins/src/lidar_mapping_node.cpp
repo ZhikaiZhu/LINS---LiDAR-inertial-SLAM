@@ -33,6 +33,13 @@
 //   Odometry and Mapping on Variable Terrain
 //      IEEE/RSJ International Conference on Intelligent Robots and Systems
 //      (IROS). October 2018.
+#include <pcl/search/impl/search.hpp>
+
+#ifndef PCL_NO_PRECOMPILE
+#include <pcl/impl/instantiate.hpp>
+#include <pcl/point_types.h>
+PCL_INSTANTIATE(Search, PCL_POINT_TYPES)
+#endif // PCL_NO_PRECOMPILE
 
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Rot3.h>

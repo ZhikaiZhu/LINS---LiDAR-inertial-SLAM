@@ -41,6 +41,8 @@
 
 #include "cloud_msgs/cloud_info.h"
 #include "integrationBase.h"
+#include "PriorFactor.h"
+#include "LidarFactor.h"
 
 using namespace Eigen;
 using namespace std;
@@ -186,7 +188,7 @@ class StateEstimator {
     filter_ = new StatePredictor();
 
     // Initialize KD tree and downsize filter
-    downSizeFilter_.setLeafSize(0.2, 0.2, 0.2);
+    downSizeFilter_.setLeafSize(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE);
     kdtreeCorner_.reset(new pcl::KdTreeFLANN<PointType>());
     kdtreeSurf_.reset(new pcl::KdTreeFLANN<PointType>());
     scan_new_.reset(new Scan());
@@ -461,7 +463,7 @@ class StateEstimator {
 
     return true;
   }
-
+  
   void performIESKF() {
     // Store current state and perform initialization
     Pk_ = filter_->covariance_;
@@ -472,6 +474,96 @@ class StateEstimator {
     bool hasConverged = false;
     bool hasDiverged = false;
     const unsigned int DIM_OF_STATE = GlobalState::DIM_OF_STATE_;
+    if (USE_CERES) {
+      for (size_t i = 0; i < 18; ++i) {
+          para_error_state[i] = 0.0;
+      }
+      GlobalState nominalState = filterState;
+      Eigen::Map<Eigen::Matrix<double, 18, 1>> errorState(para_error_state);
+      ceres::Solver::Options options;
+      options.max_solver_time_in_seconds = 0.04;
+      options.max_num_iterations = CERES_MAX_ITER;
+      options.linear_solver_type = ceres::DENSE_QR;
+      Eigen::Matrix<double, 18, 1> last_errorState = errorState;
+      for (int iter = 0; iter < NUM_ITER / 2 && !hasConverged && !hasDiverged;
+         iter++) {
+        ceres::Problem problem;
+        ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
+        problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
+        
+        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                      jacobianCoffSurfs, iter, &problem, &nominalState);
+        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                        jacobianCoffCorns, iter, &problem, &nominalState);
+                                        
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        double initial_cost = summary.initial_cost;
+        double final_cost = summary.final_cost;
+        // sanity check
+        bool hasNaN = false;
+        for (int i = 0; i < errorState.size(); i++) {
+          if (isnan(errorState[i])) {
+            errorState[i] = 0;
+            hasNaN = true;
+          }
+        }
+        if (hasNaN == true) {
+          ROS_WARN("System diverges Because of NaN...");
+          hasDiverged = true;
+          break;
+        }
+
+        // convergence check
+        if (final_cost > initial_cost * 10) {
+          ROS_WARN("System diverges...");
+          hasDiverged = true;
+          break;
+        }
+
+        Eigen::Matrix<double, 18, 1> incremental_errorState = errorState - last_errorState;
+        if (incremental_errorState.norm() <= 1e-2) {
+          hasConverged = true;
+        }
+
+        nominalState.boxPlus(errorState, linState_);
+        last_errorState = errorState;
+      }
+
+      if (hasDiverged == true) {
+        ROS_WARN("======Using ICP Method======");
+        V3D t = filterState.rn_;
+        Q4D q = filterState.qbn_;
+        estimateTransform(scan_last_, scan_new_, t, q);
+        filterState.rn_ = t;
+        filterState.qbn_ = q;
+        filter_->update(filterState, Pk_);
+      } else {
+        
+        ceres::Problem problem;
+        ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
+        problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
+        
+        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                      jacobianCoffSurfs, 10, &problem, &nominalState);
+        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                        jacobianCoffCorns, 10, &problem, &nominalState);
+                                        
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        ceres::Covariance::Options cov_options;
+        cov_options.algorithm_type = ceres::DENSE_SVD;
+        ceres::Covariance covariance(cov_options);
+        std::vector<std::pair<const double*, const double*> > covariance_blocks;
+        covariance_blocks.push_back(std::make_pair(para_error_state, para_error_state));
+        covariance.Compute(covariance_blocks, &problem);
+        covariance.GetCovarianceBlock(para_error_state, para_error_state, Pk_.data());
+        enforceSymmetry(Pk_);
+        nominalState.boxPlus(errorState, linState_);
+        filter_->update(linState_, Pk_);
+      }
+      return;
+    }
     for (int iter = 0; iter < NUM_ITER && !hasConverged && !hasDiverged;
          iter++) {
       keypointSurfs_->clear();
@@ -829,7 +921,8 @@ class StateEstimator {
   void findCorrespondingSurfFeatures(
       ScanPtr lastScan, ScanPtr newScan,
       pcl::PointCloud<PointType>::Ptr keypoints,
-      pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount) {
+      pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount, 
+      ceres::Problem* problem = nullptr, GlobalState* nominalState = nullptr) {
     int surfPointsFlatNum = newScan->surfPointsFlat_->points.size();
 
     for (int i = 0; i < surfPointsFlatNum; i++) {
@@ -948,6 +1041,13 @@ class StateEstimator {
           keypoints->push_back(newScan->surfPointsFlat_->points[i]);
           jacobianCoff->push_back(coeff);
         }
+        if (s > 0.1 && res != 0 && problem != nullptr) {
+          double ss = (1.f / SCAN_PERIOD) * (pointSel.intensity - int(pointSel.intensity));
+          V3D Pcur(newScan->surfPointsFlat_->points[i].x, newScan->surfPointsFlat_->points[i].y, newScan->surfPointsFlat_->points[i].z);
+          ceres::LossFunction *loss_function = new ceres::HuberLoss(LOSS_THRESHOLD);
+          ceres::CostFunction *cost_function = LidarPlaneFactor::Create(Pcur, P1xyz, P2xyz,P3xyz, ss, nominalState->rn_, nominalState->qbn_, LIDAR_STD / s);
+          problem->AddResidualBlock(cost_function, loss_function, para_error_state);
+        }
       }
     }
   }
@@ -955,7 +1055,8 @@ class StateEstimator {
   void findCorrespondingCornerFeatures(
       ScanPtr lastScan, ScanPtr newScan,
       pcl::PointCloud<PointType>::Ptr keypoints,
-      pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount) {
+      pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount, 
+      ceres::Problem * problem = nullptr, GlobalState* nominalState = nullptr) {
     int cornerPointsSharpNum = newScan->cornerPointsSharp_->points.size();
 
     for (int i = 0; i < cornerPointsSharpNum; i++) {
@@ -1057,6 +1158,13 @@ class StateEstimator {
 
           keypoints->push_back(newScan->cornerPointsSharp_->points[i]);
           jacobianCoff->push_back(coeff);
+        }
+        if (s > 0.1 && res != 0 && problem != nullptr) {
+          double ss = (1.f / SCAN_PERIOD) * (pointSel.intensity - int(pointSel.intensity));
+          V3D Pcur(newScan->cornerPointsSharp_->points[i].x, newScan->cornerPointsSharp_->points[i].y, newScan->cornerPointsSharp_->points[i].z);
+          ceres::LossFunction *loss_function = new ceres::HuberLoss(LOSS_THRESHOLD);
+          ceres::CostFunction *cost_function = LidarEdgeFactor::Create(Pcur, P1xyz, P2xyz, ss, nominalState->rn_, nominalState->qbn_, LIDAR_STD / s);
+          problem->AddResidualBlock(cost_function, loss_function, para_error_state);
         }
       }
     }
@@ -1504,6 +1612,8 @@ class StateEstimator {
   Eigen::Quaterniond Q_yzx_to_xyz;
   Eigen::Quaterniond Q_xyz_to_yzx;
   GlobalState globalStateYZX_;
+
+  double para_error_state[18];
 };
 
 }  // namespace fusion

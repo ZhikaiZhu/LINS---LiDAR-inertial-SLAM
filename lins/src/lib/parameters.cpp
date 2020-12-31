@@ -71,6 +71,11 @@ V3D INIT_BW;
 V3D INIT_TBL;
 Q4D INIT_RBL;
 
+double VOXEL_SIZE;
+int USE_CERES;
+double LOSS_THRESHOLD;
+int CERES_MAX_ITER;
+
 template <typename T>
 T readParam(ros::NodeHandle& n, std::string name) {
   T ans;
@@ -129,6 +134,11 @@ void readParameters(ros::NodeHandle& n) {
   readV3D(&fsSettings, "init_bw", INIT_BW);
   readV3D(&fsSettings, "init_tbl", INIT_TBL);
   readQ4D(&fsSettings, "init_rbl", INIT_RBL);
+
+  VOXEL_SIZE = fsSettings["voxel_size"];
+  USE_CERES = fsSettings["use_ceres"];
+  LOSS_THRESHOLD = fsSettings["loss_threshold"];
+  CERES_MAX_ITER = fsSettings["ceres_max_iter"];
 }
 
 void readV3D(cv::FileStorage* file, const std::__cxx11::string& name,
