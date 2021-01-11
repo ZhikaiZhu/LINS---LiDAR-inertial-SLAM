@@ -1,0 +1,11 @@
+<launch>
+    
+    <!--- Config Path -->
+    <arg name="config_path" default = "$(find lins)/config/exp_config/exp_port.yaml" />
+    
+    <!--- LINS -->   
+    <node pkg="lins" type="state_test"    name="state_test_node"    output="screen">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+    </node>
+
+</launch>

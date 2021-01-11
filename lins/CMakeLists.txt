@@ -22,6 +22,7 @@ find_package(PCL REQUIRED QUIET)
 find_package(OpenCV REQUIRED QUIET)
 find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(Sophus REQUIRED)
 
 catkin_package(
     INCLUDE_DIRS include
@@ -38,6 +39,7 @@ include_directories(
     ${GTSAM_INCLUDE_DIR}
     ${EIGEN3_INCLUDE_DIR}
     ${CERES_INCLUDE_DIRS}
+    ${Sophus_INCLUDE_DIRS}
 )
 
 link_directories(
@@ -63,6 +65,7 @@ list(APPEND LINK_LIBS
     ${PCL_LIBRARIES}
     ${OpenCV_LIBRARY_DIRS}
     ${CERES_LIBRARIES}
+    ${Sophus_LIBRARIES}
 )
 
 add_executable(lins_fusion_node ${LINS_FILES} ${SOURCE_FILES})
@@ -83,3 +86,6 @@ target_link_libraries(jacobian_test ${LINK_LIBS})
 
 add_executable(quaternion_test src/quaternion_test.cpp ${SOURCE_FILES})
 target_link_libraries(quaternion_test ${LINK_LIBS})
+
+add_executable(state_test src/state_test.cpp ${SOURCE_FILES})
+target_link_libraries(state_test ${LINK_LIBS})

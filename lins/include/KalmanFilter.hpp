@@ -167,7 +167,6 @@ class StatePredictor {
       Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();
       Gt.block<3, 3>(GlobalState::gyr_, 9) = M3D::Identity();
       Gt = Gt * dt;
-
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
       F_ = I + Ft * dt + 0.5 * Ft * Ft * dt * dt;
@@ -176,6 +175,26 @@ class StatePredictor {
       covariance_ =
           F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose();
       covariance_ = 0.5 * (covariance_ + covariance_.transpose()).eval();
+
+      // Calculate F and G of InEKF
+      Ft.setZero();
+      Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
+      Ft.block<3, 3>(GlobalState::pos_, GlobalState::gyr_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) = skew(state_tmp.gn_);
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) = -state_tmp.qbn_.toRotationMatrix();
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gyr_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
+      Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -state_tmp.qbn_.toRotationMatrix();
+      F_inekf = Ft;
+
+      Gt.setZero();
+      Gt.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+      Gt.block<3, 3>(GlobalState::vel_, GlobalState::pos_) = state_tmp.qbn_.toRotationMatrix();
+      Gt.block<3, 3>(GlobalState::vel_, GlobalState::vel_) = skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+      Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = state_tmp.qbn_.toRotationMatrix();
+      Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = -M3D::Identity();
+      Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = -M3D::Identity();
+      G_inkef = Gt;
     }
 
     state_ = state_tmp;
@@ -366,7 +385,7 @@ class StatePredictor {
   GlobalState state_;
   double time_;
   Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_>
-      F_;
+      F_, F_inekf;
   Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_>
       jacobian_, covariance_;
   Eigen::Matrix<double, GlobalState::DIM_OF_NOISE_, GlobalState::DIM_OF_NOISE_>
@@ -377,6 +396,9 @@ class StatePredictor {
 
   bool flag_init_state_;
   bool flag_init_imu_;
+
+  Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_>
+      G_inkef;
 };
 
 };  // namespace filter
