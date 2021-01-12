@@ -14,8 +14,55 @@
 #include <queue>
 #include <sensor_utils.hpp>
 
-#include "sophus/so3.h"
-#include "sophus/se3.h"
+#include <unsupported/Eigen/MatrixFunctions>
+
+inline M3D skewSymmetric(const V3D& w) {
+  M3D w_hat;
+  w_hat << 0., -w(2),  w(1),
+         w(2),     0, -w(0), 
+        -w(1),  w(0),     0;    
+  return w_hat;
+}
+
+inline V3D vee(const Matrix3d& w_hat) {
+  const double SMALL_EPS = 1e-10;
+  assert(fabs(w_hat(2, 1) + w_hat(1, 2)) < SMALL_EPS);
+  assert(fabs(w_hat(0, 2) + w_hat(2, 0)) < SMALL_EPS);
+  assert(fabs(w_hat(1, 0) + w_hat(0, 1)) < SMALL_EPS);
+  return Vector3d(w_hat(2, 1), w_hat(0, 2), w_hat(1, 0));
+}
+
+inline Eigen::VectorXd expSE_3(const V3D& xi_omega, const Eigen::VectorXd& xi_x) {
+  const double theta = std::sqrt(xi_omega.squaredNorm());
+  M3D Omega_1 = skewSymmetric(xi_omega);
+  M3D Omega_2 = Omega_1 * Omega_1;
+  if (theta < 1e-6) {
+    return xi_x + 1 / 2 * Omega_1 * xi_x + 1 / 6 * Omega_2 * xi_x;
+  }
+  else {
+    const double A = std::sin(theta) / theta;
+    const double B = (1 - std::cos(theta)) / (theta * theta);
+    const double C = (1 - A) / (theta * theta);
+    const M3D  V = M3D::Identity() + B * Omega_1 + C * Omega_2;
+    return V * xi_x;
+  }
+}
+
+inline M3D expSO_3(const V3D& xi_omega) {
+  const double theta = std::sqrt(xi_omega.squaredNorm());
+  M3D Omega_1 = skewSymmetric(xi_omega);
+  M3D Omega_2 = Omega_1 * Omega_1;
+  if (theta < 1e-6) {
+    return M3D::Identity() + 1 / 2 * Omega_1 + 1 / 6 * Omega_2;
+  }
+  else {
+    const double A = std::sin(theta) / theta;
+    const double B = (1 - std::cos(theta)) / (theta * theta);
+    const M3D  dR = M3D::Identity() + A * Omega_1 + B * Omega_2;
+    return dR;
+  }
+}
+
 
 class stateTransitionTest{
   public:
@@ -23,17 +70,17 @@ class stateTransitionTest{
     ~stateTransitionTest() {}
 
     void run();
-    void calcNumericalDerivative(Eigen::MatrixXd& error_state_dot_numerical, const Eigen::MatrixXd& cur_error_state);
     void imuCallback(const sensor_msgs::Imu::ConstPtr& imuIn);
 
+  public:
     ros::NodeHandle nh_;
     ros::NodeHandle pnh_;
     ros::Subscriber subImu_;
     std::queue<Imu> imuBuf_;
-    StatePredictor* filter_;
+    StatePredictor* nominalFilter_;
+    StatePredictor* trueFilter_;
     GlobalState nominalState_;
     GlobalState trueState_;
-    GlobalState state_tmp;
     V3D acc_raw_;
     V3D gyr_raw_;
     V3D ba_init_;
@@ -51,7 +98,8 @@ void stateTransitionTest::run() {
   bw_init_ = INIT_BW;
   last_error_state_ = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
   last_error_state_dot_ = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
-  filter_ = new StatePredictor();
+  nominalFilter_ = new StatePredictor();
+  trueFilter_ = new StatePredictor();
   subImu_ = pnh_.subscribe<sensor_msgs::Imu>(IMU_TOPIC, 100, &stateTransitionTest::imuCallback, this);
 }
 
@@ -68,16 +116,19 @@ void stateTransitionTest::imuCallback(const sensor_msgs::ImuConstPtr& imuMsg) {
     // Initialize first frame
     last_imu_time_ = imu_cur_.time;
     imu_last_ = imu_cur_;
-    filter_->initialization(imu_last_.time, V3D(0, 0, 0), V3D(0, 0, 0),
+    nominalFilter_->initialization(imu_last_.time, V3D(0, 0, 0), V3D(0, 0, 0),
                             ba_init_, bw_init_, imu_last_.acc,
                             imu_last_.gyr);
-    state_tmp = filter_->state_;
+
+    trueFilter_->initialization(imu_last_.time, V3D(0, 0, 0), V3D(0, 0, 0),
+                            ba_init_, bw_init_, imu_last_.acc,
+                            imu_last_.gyr);
     cnt_++;
   }
   else if (cnt_ <= 10) {   
     double dt = imu_cur_.time - last_imu_time_;
-    filter_->predict(dt, imu_cur_.acc, imu_cur_.gyr, true);
-    nominalState_ = filter_->state_;
+    nominalFilter_->predict(dt, imu_cur_.acc, imu_cur_.gyr, true);
+    nominalState_ = nominalFilter_->state_;
 
     // Create noise matrix n_t^a, n_t^w, n_t^{ba}, n_t^{bw}
     double sqrt_cov[4] = {ACC_N * ug, GYR_N * dph, ACC_W * ugpsHz, GYR_W * dpsh};
@@ -91,49 +142,47 @@ void stateTransitionTest::imuCallback(const sensor_msgs::ImuConstPtr& imuMsg) {
       error_noise.middleRows(3 * i, 3) = noise_tmp;
     }
 
-    // Add noise to true state and calculate nominal state
-    V3D gra_noise;
-    rng.fill(tmp, cv::RNG::NORMAL, 0., 0.1);
-    cv::cv2eigen(tmp, gra_noise);
-    V3D un_acc_0 = state_tmp.qbn_ * (imu_last_.acc - state_tmp.ba_ - error_noise.middleRows(6, 3)*dt - error_noise.middleRows(0, 3)) 
-                   + state_tmp.gn_ + gra_noise;
-    V3D un_gyr = 0.5 * (imu_last_.gyr + imu_cur_.gyr) - state_tmp.bw_ - error_noise.middleRows(9, 3)*dt - error_noise.middleRows(3, 3);
-    Q4D dq = axis2Quat(un_gyr * dt);
-    state_tmp.qbn_ = (state_tmp.qbn_ * dq).normalized();
-    V3D un_acc_1 = state_tmp.qbn_ * (imu_cur_.acc - state_tmp.ba_ - error_noise.middleRows(6, 3)*dt - error_noise.middleRows(0, 3)) 
-                   + state_tmp.gn_ + gra_noise;
-    V3D un_acc = 0.5 * (un_acc_0 + un_acc_1);
-    state_tmp.rn_ = state_tmp.rn_ + dt * state_tmp.vn_ + 0.5 * dt * dt * un_acc;
-    state_tmp.vn_ = state_tmp.vn_ + dt * un_acc;
-    trueState_ = state_tmp;
-    trueState_.ba_ += error_noise.middleRows(6, 3)*dt;
-    trueState_.bw_ += error_noise.middleRows(9, 3)*dt;
+    // Add noise to true state and calculate true state
+    trueFilter_->state_.ba_ += error_noise.middleRows(6, 3) * dt;
+    trueFilter_->state_.bw_ += error_noise.middleRows(9, 3) * dt;
+    trueFilter_->predict(dt, imu_cur_.acc - error_noise.middleRows(0, 3), imu_cur_.gyr - error_noise.middleRows(3, 3), true);
+    trueState_ = trueFilter_->state_;
 
     // Calculate the derivative of the error state by analytical method
+    Eigen::MatrixXd X_nominal = Eigen::MatrixXd::Identity(5, 5), X_true = Eigen::MatrixXd::Identity(5, 5);
+    X_nominal.block<3, 3>(0, 0) = nominalState_.qbn_.toRotationMatrix();
+    X_nominal.block<3, 1>(0, 3) = nominalState_.vn_;
+    X_nominal.block<3, 1>(0, 4) = nominalState_.rn_;
+    X_true.block<3, 3>(0, 0) = trueState_.qbn_.toRotationMatrix();
+    X_true.block<3, 1>(0, 3) = trueState_.vn_;
+    X_true.block<3, 1>(0, 4) = trueState_.rn_;
+    Eigen::MatrixXd omega_X = (X_nominal * X_true.inverse()).log();
     Eigen::MatrixXd error_state = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
     Eigen::MatrixXd error_state_dot = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
-    Sophus::SO3 delta_R(nominalState_.qbn_ * trueState_.qbn_.inverse());
-    error_state.middleRows(0, 3) = delta_R.log();
-    error_state.middleRows(3, 3) = nominalState_.vn_ - nominalState_.qbn_ * trueState_.qbn_.inverse() * trueState_.vn_;
-    error_state.middleRows(6, 3) = nominalState_.rn_ - nominalState_.qbn_ * trueState_.qbn_.inverse() * trueState_.rn_;
+    error_state.middleRows(0, 3) = omega_X.block<3, 1>(0, 4);
+    error_state.middleRows(3, 3) = omega_X.block<3, 1>(0, 3);
+    error_state.middleRows(6, 3) = vee(omega_X.block<3, 3>(0, 0));
     error_state.middleRows(9, 3) = nominalState_.bw_ - trueState_.bw_;
     error_state.middleRows(12, 3) = nominalState_.ba_ - trueState_.ba_;
     error_state.middleRows(15, 3) = nominalState_.gn_ - trueState_.gn_;
-    error_state_dot = filter_->F_inekf * error_state + filter_->G_inkef * error_noise;
-    
-    // Calculate the derivative of the error state by numerical method
-    //Eigen::MatrixXd error_state_dot_numerical = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
-    //calcNumericalDerivative(error_state_dot_numerical, error_state);
+    error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inkef * error_noise;
 
     // Calculate the increment of the error state and compare with next frame
     if (cnt_ > 1) {
       std::cout << "Current error state is: " << std::endl;
       std::cout << error_state.transpose() << std::endl;
+      Eigen::MatrixXd X_last = Eigen::MatrixXd::Identity(5, 5), X_incre = Eigen::MatrixXd::Identity(5, 5);
+      X_last.block<3, 3>(0, 0) = expSO_3(last_error_state_.middleRows(6, 3));
+      X_last.block<3, 1>(0, 3) = expSE_3(last_error_state_.middleRows(6, 3), last_error_state_.middleRows(3, 3));
+      X_last.block<3, 1>(0, 4) = expSE_3(last_error_state_.middleRows(6, 3), last_error_state_.middleRows(0, 3));
+      X_incre.block<3, 3>(0, 0) = expSO_3(last_error_state_dot_.middleRows(6, 3)*dt);
+      X_incre.block<3, 1>(0, 3) = expSE_3(last_error_state_dot_.middleRows(6, 3)*dt, last_error_state_dot_.middleRows(3, 3)*dt);
+      X_incre.block<3, 1>(0, 4) = expSE_3(last_error_state_dot_.middleRows(6, 3)*dt, last_error_state_dot_.middleRows(0, 3)*dt);
+      Eigen::MatrixXd omega_cur = (X_incre *X_last).log();
       Eigen::MatrixXd incre_error_state = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
-      V3D epsilon_R_last(last_error_state_.middleRows(6, 3));
-      V3D epsilon_R_incre(last_error_state_dot_.middleRows(6, 3));
-      incre_error_state.middleRows(6, 3) = (Sophus::SO3::exp(epsilon_R_last) * Sophus::SO3::exp(epsilon_R_incre*dt)).log();
-      incre_error_state.middleRows(0, 6) = last_error_state_.middleRows(0, 6) + dt * last_error_state_dot_.middleRows(0, 6);
+      incre_error_state.middleRows(0, 3) = omega_cur.block<3, 1>(0, 4);
+      incre_error_state.middleRows(3, 3) = omega_cur.block<3, 1>(0, 3);
+      incre_error_state.middleRows(6, 3) = vee(omega_cur.block<3, 3>(0, 0));
       incre_error_state.middleRows(9, 9) = last_error_state_.middleRows(9, 9) + dt * last_error_state_dot_.middleRows(9, 9);
       std::cout << "Current error state with increment is: " << std::endl;
       std::cout << incre_error_state.transpose() << std::endl;
@@ -142,49 +191,11 @@ void stateTransitionTest::imuCallback(const sensor_msgs::ImuConstPtr& imuMsg) {
 
     last_error_state_ = error_state;
     last_error_state_dot_ = error_state_dot;
-    state_tmp = trueState_;
     last_imu_time_ = imu_cur_.time;
     imu_last_ = imu_cur_;
     cnt_++;
   }
 }
-
-void stateTransitionTest::calcNumericalDerivative(Eigen::MatrixXd& error_state_dot_numerical, const Eigen::MatrixXd& cur_error_state) {
-  // This is a complicated way and no use
-  /* const double eps = 1e-6;
-  Sophus::SO3 R_hat(nominalState_.qbn_), R(trueState_.qbn_);
-  V3D v_hat_dot, v_dot, p_hat_dot, p_dot;
-  M3D eta_R_dot, eta_R_dot_left, eta_R_dot_right;
-  eta_R_dot_left.setZero();
-  eta_R_dot_right.setZero();
-
-  for (int k = 0; k < 3; k++) {
-    V3D delta = Eigen::Vector3d(k == 0, k == 1, k == 2) * eps;
-    V3D tmp_vec = ((R_hat * Sophus::SO3::exp(delta) * R.inverse()) * (R_hat * R.inverse()).inverse()).log() / eps;
-    eta_R_dot_left += Sophus::SO3::hat(tmp_vec);
-    tmp_vec = ((R_hat * (R * Sophus::SO3::exp(delta)).inverse()) * (R_hat * R.inverse()).inverse()).log() / eps;
-    eta_R_dot_right += Sophus::SO3::hat(tmp_vec);
-  }
-
-  eta_R_dot = eta_R_dot_left + eta_R_dot_right;
-  v_hat_dot = nominalState_.qbn_ * (imu_cur_.acc - nominalState_.ba_) + nominalState_.gn_;
-  v_dot = trueState_.qbn_ * (imu_cur_.acc - trueState_.ba_ - error_noise.middleRows(0, 3)) + trueState_.gn_;
-  p_hat_dot = nominalState_.vn_;
-  p_dot = trueState_.vn_;
-
-  error_state_dot_numerical.middleRows(0, 3) = p_hat_dot - eta_R_dot * trueState_.rn_ - R_hat * R.inverse() * p_dot;
-  error_state_dot_numerical.middleRows(3, 3) = v_hat_dot - eta_R_dot * trueState_.vn_ - R_hat * R.inverse() * v_dot;
-  error_state_dot_numerical.middleRows(6, 3) = Sophus::SO3(eta_R_dot).log();
-  error_state_dot_numerical.middleRows(9, 3) = -error_noise.middleRows(6, 3);
-  error_state_dot_numerical.middleRows(12, 3) = -error_noise.middleRows(9, 3); */
-  V3D epsilon_R_cur(cur_error_state.middleRows(6, 3));
-  V3D epsilon_R_last(last_error_state_.middleRows(6, 3));
-  double dt = imu_cur_.time - imu_last_.time;
-  error_state_dot_numerical.middleRows(6, 3) = (Sophus::SO3::exp(epsilon_R_cur) * Sophus::SO3::exp(epsilon_R_last).inverse()).log() / dt;
-  error_state_dot_numerical.middleRows(0, 6) = (cur_error_state.middleRows(0, 6) - last_error_state_.middleRows(0, 6)) / dt;
-  error_state_dot_numerical.middleRows(9, 9) = (cur_error_state.middleRows(9, 9) - last_error_state_.middleRows(9, 9)) / dt;
-}
-
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "state_transition_node");
