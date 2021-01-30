@@ -495,7 +495,7 @@ class StateEstimator {
                                       jacobianCoffSurfs, iter, &problem, &nominalState);
         findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
                                         jacobianCoffCorns, iter, &problem, &nominalState);
-                                        
+
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         double initial_cost = summary.initial_cost;
@@ -526,7 +526,7 @@ class StateEstimator {
           hasConverged = true;
         }
 
-        nominalState.boxPlus(errorState, linState_);
+        nominalState.boxPlusInv(errorState, linState_);
         last_errorState = errorState;
       }
 
@@ -543,12 +543,12 @@ class StateEstimator {
         ceres::Problem problem;
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
-        
+
         findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
                                       jacobianCoffSurfs, 10, &problem, &nominalState);
         findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
                                         jacobianCoffCorns, 10, &problem, &nominalState);
-                                        
+
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         ceres::Covariance::Options cov_options;
@@ -559,7 +559,7 @@ class StateEstimator {
         covariance.Compute(covariance_blocks, &problem);
         covariance.GetCovarianceBlock(para_error_state, para_error_state, Pk_.data());
         enforceSymmetry(Pk_);
-        nominalState.boxPlus(errorState, linState_);
+        nominalState.boxPlusInv(errorState, linState_);
         filter_->update(linState_, Pk_);
       }
       return;
