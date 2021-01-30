@@ -85,10 +85,10 @@ class GlobalState {
                GlobalState& stateOut) {
     stateOut.ba_ = ba_ + xk.template segment<3>(acc_);
     stateOut.bw_ = bw_ + xk.template segment<3>(gyr_);
-    Q4D dq = axis2Quat(-xk.template segment<3>(att_));
+    Q4D dq = axis2Quat(xk.template segment<3>(att_));
     stateOut.qbn_ = (dq * qbn_).normalized();
-    stateOut.rn_ = dq * rn_ - dq * xk.template segment<3>(pos_);
-    stateOut.vn_ = dq * vn_ - dq * xk.template segment<3>(vel_);
+    stateOut.rn_ = dq * rn_ + xk.template segment<3>(pos_);
+    stateOut.vn_ = dq * vn_ + xk.template segment<3>(vel_);
     stateOut.gn_ = gn_ + xk.template segment<3>(gra_);
   }
 
