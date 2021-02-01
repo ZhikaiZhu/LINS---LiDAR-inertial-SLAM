@@ -20,7 +20,7 @@ lidar_scale: 1
 lidar_std: 0.01
 voxel_size: 0.2
 use_ceres: 1
-loss_threshold: 1.0
+loss_threshold: 0.5
 ceres_max_iter: 2
 
 # topic names

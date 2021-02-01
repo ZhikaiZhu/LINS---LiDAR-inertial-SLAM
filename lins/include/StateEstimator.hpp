@@ -526,7 +526,8 @@ class StateEstimator {
           hasConverged = true;
         }
 
-        nominalState.boxPlus(errorState, linState_);
+        //nominalState.boxPlus(errorState, linState_);
+        nominalState.boxPlusInv(errorState, linState_);
         last_errorState = errorState;
       }
 
@@ -538,8 +539,8 @@ class StateEstimator {
         filterState.rn_ = t;
         filterState.qbn_ = q;
         filter_->update(filterState, Pk_);
-      } else {
-        
+      } 
+      else {       
         ceres::Problem problem;
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
@@ -559,7 +560,8 @@ class StateEstimator {
         covariance.Compute(covariance_blocks, &problem);
         covariance.GetCovarianceBlock(para_error_state, para_error_state, Pk_.data());
         enforceSymmetry(Pk_);
-        nominalState.boxPlus(errorState, linState_);
+        //nominalState.boxPlus(errorState, linState_);
+        nominalState.boxPlusInv(errorState, linState_);
         filter_->update(linState_, Pk_);
       }
       return;

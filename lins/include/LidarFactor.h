@@ -15,7 +15,6 @@ struct LidarEdgeFactor
 		Eigen::Matrix<T, 3, 1> lpa{T(last_point_a.x()), T(last_point_a.y()), T(last_point_a.z())};
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
 
-
         Eigen::Matrix<T, 18, 1> delta_x;
         for (size_t i = 0; i < 18; ++i) {
             delta_x(i, 0) = dx[i];
@@ -23,7 +22,6 @@ struct LidarEdgeFactor
 
         Eigen::Matrix<T, 3, 1> nominal_rn{T(rn[0]), T(rn[1]), T(rn[2])};
         Eigen::Matrix<T, 3, 1> delta_rn{T(dx[0]), T(dx[1]), T(dx[2])};
-        nominal_rn = nominal_rn + delta_rn;
         Eigen::Quaternion<T> nominal_qbn{T(qbn.w()), T(qbn.x()), T(qbn.y()), T(qbn.z())};
         Eigen::Matrix<T, 3, 1> d_theta{T(dx[6]), T(dx[7]), T(dx[8])};
 
@@ -34,9 +32,11 @@ struct LidarEdgeFactor
         }
         
         //Eigen::Quaternion<T> dq = axis2Quat(delta_x.template segment<3>(6));
-        Eigen::Quaternion<T> q_last_curr = (nominal_qbn * dq).normalized();
+        Eigen::Quaternion<T> q_last_curr = (dq * nominal_qbn).normalized();
         Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
 		q_last_curr = q_identity.slerp(T(s), q_last_curr);
+
+        nominal_rn = dq * nominal_rn + delta_rn;
         /*
         Eigen::Matrix<T, 3, 1> phi = Quat2axis(nominal_qbn);
         Eigen::Quaternion<T> q_last_curr = axis2Quat(s * phi);
@@ -86,7 +86,6 @@ struct LidarPlaneFactor
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
 		Eigen::Matrix<T, 3, 1> lpc{T(last_point_c.x()), T(last_point_c.y()), T(last_point_c.z())};
 
-
         Eigen::Matrix<T, 18, 1> delta_x;
         for (size_t i = 0; i < 18; ++i) {
             delta_x(i, 0) = dx[i];
@@ -94,7 +93,6 @@ struct LidarPlaneFactor
 
         Eigen::Matrix<T, 3, 1> nominal_rn{T(rn[0]), T(rn[1]), T(rn[2])};
         Eigen::Matrix<T, 3, 1> delta_rn{T(dx[0]), T(dx[1]), T(dx[2])};
-        nominal_rn = nominal_rn + delta_rn;
         Eigen::Quaternion<T> nominal_qbn{T(qbn.w()), T(qbn.x()), T(qbn.y()), T(qbn.z())};
         Eigen::Matrix<T, 3, 1> d_theta{T(dx[6]), T(dx[7]), T(dx[8])};
 
@@ -105,9 +103,11 @@ struct LidarPlaneFactor
         }
 
         //Eigen::Quaternion<T> dq = axis2Quat(delta_x.template segment<3>(6));
-        Eigen::Quaternion<T> q_last_curr = (nominal_qbn * dq).normalized();
+        Eigen::Quaternion<T> q_last_curr = (dq * nominal_qbn).normalized();
         Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
 		q_last_curr = q_identity.slerp(T(s), q_last_curr);
+
+        nominal_rn = dq * nominal_rn + delta_rn;
         /*
         Eigen::Matrix<T, 3, 1> phi = Quat2axis(nominal_qbn);
         Eigen::Quaternion<T> q_last_curr = axis2Quat(s * phi);
