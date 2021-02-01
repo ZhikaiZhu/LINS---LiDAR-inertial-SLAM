@@ -279,8 +279,8 @@ void stateTransitionTest::testInEKF() {
       initState_.rn_ = imuData_last_->twb_;
       initState_.vn_ = imuData_last_->imu_velocity_;
       initState_.qbn_ = imuData_last_->Rwb_;
-      initState_.ba_ = ba_init_;
-      initState_.bw_ = bw_init_;
+      initState_.ba_ = imuData_last_->imu_acc_bias_;
+      initState_.bw_ = imuData_last_->imu_gyr_bias_;
       initState_.gn_ = V3D(0, 0, -9.81);
       nominalFilter_->initialization(t, V3D(0, 0, 0), V3D(0, 0, 0),
                             ba_init_, bw_init_, imuData_last_->imu_acc_,
@@ -296,19 +296,17 @@ void stateTransitionTest::testInEKF() {
     }
     else {
       std::cout << "----------for the " << cnt_ << "th time----------" << std::endl;
+      imuData_cur->addImuNoise();
       trueState_.qbn_ = initState_.qbn_.toRotationMatrix().transpose() * imuData_cur->Rwb_;         // R_{k}^{1}
       trueState_.vn_ = initState_.qbn_.inverse() * imuData_cur->imu_velocity_;                      // V_{k}^{1}
       trueState_.rn_ = initState_.qbn_.inverse() * (imuData_cur->twb_ - initState_.rn_);            // P_{k}^{1}
-      trueState_.ba_ = initState_.ba_;                                                              // ba
-      trueState_.bw_ = initState_.bw_;                                                              // bw
+      trueState_.ba_ = imuData_cur->imu_acc_bias_;                                                  // ba
+      trueState_.bw_ = imuData_cur->imu_gyr_bias_;                                                  // bw
       trueState_.gn_ = imuData_cur->Rwb_.transpose() * initState_.gn_;                              // g^{k}
-      imuData_cur->addImuNoise();
       imudata_noise.emplace_back(imuData_cur);
       double dt = imuData_cur->timestamp_ - imuData_last_->timestamp_;
       nominalFilter_->predict(dt, imuData_cur->imu_acc_, imuData_cur->imu_gyr_, true);
       nominalState_ = nominalFilter_->state_;
-      nominalState_.ba_ = imuData_cur->imu_acc_bias_;
-      nominalState_.bw_ = imuData_cur->imu_gyr_bias_;
       nominalState_.gn_ = nominalFilter_->state_.qbn_.inverse() * nominalFilter_->state_.gn_;
       nominalState_.gn_ = nominalState_.gn_ * 9.81 / nominalState_.gn_.norm();
 
@@ -320,15 +318,15 @@ void stateTransitionTest::testInEKF() {
       X_true.block<3, 3>(0, 0) = trueState_.qbn_.toRotationMatrix();
       X_true.block<3, 1>(0, 3) = trueState_.vn_;
       X_true.block<3, 1>(0, 4) = trueState_.rn_;
-      Eigen::MatrixXd omega_X = (X_nominal * X_true.inverse()).log();
+      Eigen::MatrixXd omega_X = (X_true * X_nominal.inverse()).log();
       Eigen::MatrixXd error_state = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
       Eigen::MatrixXd error_state_dot = Eigen::MatrixXd::Zero(GlobalState::DIM_OF_STATE_, 1);
       error_state.middleRows(0, 3) = omega_X.block<3, 1>(0, 4);
       error_state.middleRows(3, 3) = omega_X.block<3, 1>(0, 3);
       error_state.middleRows(6, 3) = vee(omega_X.block<3, 3>(0, 0));
-      error_state.middleRows(9, 3) = nominalState_.bw_ - trueState_.bw_;
-      error_state.middleRows(12, 3) = nominalState_.ba_ - trueState_.ba_;
-      error_state.middleRows(15, 3) = nominalState_.gn_ - trueState_.gn_;
+      error_state.middleRows(9, 3) = trueState_.bw_ - nominalState_.bw_;
+      error_state.middleRows(12, 3) = trueState_.ba_ - nominalState_.ba_;
+      error_state.middleRows(15, 3) = trueState_.gn_ = nominalState_.gn_;
       error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inkef * imuData_cur->noise_;
 
       // Calculate the increment of the error state and compare with next frame
