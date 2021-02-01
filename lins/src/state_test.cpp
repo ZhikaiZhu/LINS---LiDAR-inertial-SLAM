@@ -324,9 +324,9 @@ void stateTransitionTest::testInEKF() {
       error_state.middleRows(0, 3) = omega_X.block<3, 1>(0, 4);
       error_state.middleRows(3, 3) = omega_X.block<3, 1>(0, 3);
       error_state.middleRows(6, 3) = vee(omega_X.block<3, 3>(0, 0));
-      error_state.middleRows(9, 3) = trueState_.bw_ - nominalState_.bw_;
-      error_state.middleRows(12, 3) = trueState_.ba_ - nominalState_.ba_;
-      error_state.middleRows(15, 3) = trueState_.gn_ = nominalState_.gn_;
+      error_state.middleRows(9, 3) = trueState_.ba_ - nominalState_.ba_;
+      error_state.middleRows(12, 3) = trueState_.bw_ - nominalState_.bw_;
+      error_state.middleRows(15, 3) = trueState_.gn_ - nominalState_.gn_;
       error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inkef * imuData_cur->noise_;
 
       // Calculate the increment of the error state and compare with next frame
