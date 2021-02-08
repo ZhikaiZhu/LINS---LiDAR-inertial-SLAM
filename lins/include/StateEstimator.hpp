@@ -693,7 +693,8 @@ class StateEstimator {
 
   void calculateRPfromGravity(const V3D& fbib, double& roll, double& pitch) {
     pitch = -sign(fbib.z()) * asin(fbib.x() / G0);
-    roll = sign(fbib.z()) * asin(fbib.y() / G0);
+    //roll = sign(fbib.z()) * asin(fbib.y() / G0);
+    roll = atan(fbib.y() / fbib.z());
   }
 
   // Update the gloabl state by the new relative transformation

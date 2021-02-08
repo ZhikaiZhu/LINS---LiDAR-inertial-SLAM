@@ -200,7 +200,7 @@ class StatePredictor {
       Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = state_tmp.qbn_.toRotationMatrix();
       Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = -M3D::Identity();
       Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = -M3D::Identity();
-      Gt = Gt * dt;
+      // Gt = Gt * dt;
 
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
@@ -208,7 +208,7 @@ class StatePredictor {
 
       // jacobian_ = F * jacobian_;
       covariance_ =
-          F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose();
+          F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose() * dt;
       covariance_ = 0.5 * (covariance_ + covariance_.transpose()).eval();
     }
 
