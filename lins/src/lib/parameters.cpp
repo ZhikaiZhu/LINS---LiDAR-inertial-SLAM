@@ -75,6 +75,7 @@ double VOXEL_SIZE;
 int USE_CERES;
 double LOSS_THRESHOLD;
 int CERES_MAX_ITER;
+int PURE_IMU;
 
 template <typename T>
 T readParam(ros::NodeHandle& n, std::string name) {
@@ -139,6 +140,7 @@ void readParameters(ros::NodeHandle& n) {
   USE_CERES = fsSettings["use_ceres"];
   LOSS_THRESHOLD = fsSettings["loss_threshold"];
   CERES_MAX_ITER = fsSettings["ceres_max_iter"];
+  PURE_IMU = fsSettings["pure_imu"];
 }
 
 void readV3D(cv::FileStorage* file, const std::__cxx11::string& name,

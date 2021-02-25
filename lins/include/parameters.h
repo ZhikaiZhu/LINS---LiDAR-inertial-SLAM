@@ -156,6 +156,7 @@ extern double VOXEL_SIZE;
 extern int USE_CERES;
 extern double LOSS_THRESHOLD;
 extern int CERES_MAX_ITER;
+extern int PURE_IMU;
 
 void readParameters(ros::NodeHandle& n);
 

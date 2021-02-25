@@ -22,6 +22,7 @@ voxel_size: 0.2
 use_ceres: 1
 loss_threshold: 1.0
 ceres_max_iter: 2
+pure_imu: 0
 
 # topic names
 imu_topic: "/imu/data"

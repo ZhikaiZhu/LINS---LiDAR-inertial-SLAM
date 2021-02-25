@@ -158,49 +158,42 @@ class StatePredictor {
     state_tmp.vn_ = state_tmp.vn_ + dt * un_acc;
 
     if (update_jacobian_) {
-      /*
-      MXD Ft =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
+      // Calculate F and G of InEKFx
+      MXD Ft = MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
+      MXD Gt = MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
+      if (USE_CERES) {
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::gyr_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) = skew(state_tmp.gn_);
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) = -state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gyr_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -state_tmp.qbn_.toRotationMatrix();
 
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =
-          -state_tmp.qbn_.toRotationMatrix() * skew(acc - state_tmp.ba_);
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =
-          -state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
+        Gt.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::vel_, GlobalState::pos_) = state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::vel_, GlobalState::vel_) = skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = -M3D::Identity();
+        Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = -M3D::Identity();
+      } else {
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
 
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::att_) =
-          - skew(gyr - state_tmp.bw_);
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =
+            -state_tmp.qbn_.toRotationMatrix() * skew(acc - state_tmp.ba_);
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =
+            -state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
 
-      MXD Gt =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
-      Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
-      Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();
-      Gt.block<3, 3>(GlobalState::gyr_, 9) = M3D::Identity();
-      Gt = Gt * dt;
-      */
-      // Calculate F and G of InEKF
-      MXD Ft =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::gyr_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) = skew(state_tmp.gn_);
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) = -state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gyr_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::att_) =
+            - skew(gyr - state_tmp.bw_);
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
 
-      MXD Gt =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
-      Gt.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::vel_, GlobalState::pos_) = state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::vel_, GlobalState::vel_) = skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = -M3D::Identity();
-      Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = -M3D::Identity();
-      // Gt = Gt * dt;
+        Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
+        Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();
+        Gt.block<3, 3>(GlobalState::gyr_, 9) = M3D::Identity();
+      }
 
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);

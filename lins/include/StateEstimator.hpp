@@ -490,12 +490,12 @@ class StateEstimator {
         ceres::Problem problem;
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
-        
-        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
-                                      jacobianCoffSurfs, iter, &problem, &nominalState);
-        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
-                                        jacobianCoffCorns, iter, &problem, &nominalState);
-
+        if (!PURE_IMU) {
+          findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                        jacobianCoffSurfs, iter, &problem, &nominalState);
+          findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                          jacobianCoffCorns, iter, &problem, &nominalState);
+        }
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         double initial_cost = summary.initial_cost;
@@ -543,12 +543,12 @@ class StateEstimator {
         ceres::Problem problem;
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
-
-        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
-                                      jacobianCoffSurfs, 10, &problem, &nominalState);
-        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
-                                        jacobianCoffCorns, 10, &problem, &nominalState);
-
+        if (!PURE_IMU) {
+          findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                        jacobianCoffSurfs, 10, &problem, &nominalState);
+          findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                          jacobianCoffCorns, 10, &problem, &nominalState);
+        }
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         ceres::Covariance::Options cov_options;
@@ -694,7 +694,7 @@ class StateEstimator {
   void calculateRPfromGravity(const V3D& fbib, double& roll, double& pitch) {
     pitch = -sign(fbib.z()) * asin(fbib.x() / G0);
     //roll = sign(fbib.z()) * asin(fbib.y() / G0);
-    roll = atan(fbib.y() / fbib.z());
+    roll = -atan(fbib.y() / fbib.z());
   }
 
   // Update the gloabl state by the new relative transformation
@@ -1215,7 +1215,7 @@ class StateEstimator {
     rpy << deg2rad(0.0), deg2rad(0.0), deg2rad(IMU_LIDAR_EXTRINSIC_ANGLE);
     M3D R = rpy2R(rpy);
     V3D Pi(pi->x, pi->y, pi->z);
-    V3D Po = INIT_RBL * Pi + INIT_TBL;
+    V3D Po = R * Pi;
     po->x = Po.x();
     po->y = Po.y();
     po->z = Po.z();

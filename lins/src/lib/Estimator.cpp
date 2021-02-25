@@ -287,6 +287,7 @@ void LinsFusion::alignIMUtoVehicle(const V3D& rpy, const V3D& acc_in,
                                    const V3D& gyr_in, V3D& acc_out,
                                    V3D& gyr_out) {
   M3D R = rpy2R(rpy);
+  R = parameter::INIT_RBL.toRotationMatrix();
   acc_out = R.transpose() * acc_in;
   gyr_out = R.transpose() * gyr_in;
 }
