@@ -11,7 +11,7 @@
     <node pkg="tf" type="static_transform_publisher" name="base_link_to_camera" args="0 0 0 -1.570795 -1.570795 0        /camera /base_link   10" />
     
     <!--- Config Path -->
-    <arg name="config_path" default = "$(find lins)/config/exp_config/exp_port.yaml" />
+    <arg name="config_path" default = "$(find lins)/config/exp_config/lio_sam.yaml" />
     
     <!--- LINS -->   
     <node pkg="lins" type="image_projection_node"    name="image_projection_node"    output="screen">

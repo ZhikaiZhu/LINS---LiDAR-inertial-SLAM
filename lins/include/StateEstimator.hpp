@@ -1215,7 +1215,7 @@ class StateEstimator {
     rpy << deg2rad(0.0), deg2rad(0.0), deg2rad(IMU_LIDAR_EXTRINSIC_ANGLE);
     M3D R = rpy2R(rpy);
     V3D Pi(pi->x, pi->y, pi->z);
-    V3D Po = R * Pi;
+    V3D Po = INIT_RBL * Pi + INIT_TBL;
     po->x = Po.x();
     po->y = Po.y();
     po->z = Po.z();

@@ -294,10 +294,16 @@ class StatePredictor {
     V3D covAcc = INIT_ACC_STD.array().square();
     V3D covGyr = INIT_GYR_STD.array().square();
 
+    /*
     double peba = pow(ACC_N * ug, 2);
     double pebg = pow(GYR_N * dph, 2);
     double pweba = pow(ACC_W * ugpsHz, 2);
     double pwebg = pow(GYR_W * dpsh, 2);
+    */
+    double peba = pow(ACC_N, 2);
+    double pebg = pow(GYR_N, 2);
+    double pweba = pow(ACC_W, 2);
+    double pwebg = pow(GYR_W, 2);
     V3D gra_cov(0.01, 0.01, 0.01);
 
     if (type == 0) {
