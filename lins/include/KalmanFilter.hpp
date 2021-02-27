@@ -379,8 +379,8 @@ class StatePredictor {
 
       state_.rn_.setZero();
       state_.vn_ = state_.qbn_.inverse() * state_.vn_;
-      state_.qbn_.setIdentity();
       state_.gn_ = state_.qbn_.inverse() * state_.gn_;
+      state_.qbn_.setIdentity();
       state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm();
       // initializeCovariance(1);
     }
