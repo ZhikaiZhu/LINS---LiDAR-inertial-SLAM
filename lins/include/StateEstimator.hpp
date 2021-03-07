@@ -695,7 +695,8 @@ class StateEstimator {
 
   void calculateRPfromGravity(const V3D& fbib, double& roll, double& pitch) {
     pitch = -sign(fbib.z()) * asin(fbib.x() / G0);
-    roll = sign(fbib.z()) * asin(fbib.y() / G0);
+    // roll = sign(fbib.z()) * asin(fbib.y() / G0);
+    roll = atan(fbib.y() / fbib.z());
   }
 
   // Update the gloabl state by the new relative transformation
@@ -707,7 +708,7 @@ class StateEstimator {
         globalState_.qbn_ * filterState.qbn_.inverse() * filterState.vn_;
     globalState_.ba_ = filterState.ba_;
     globalState_.bw_ = filterState.bw_;
-    globalState_.gn_ = globalState_.qbn_ * filterState.gn_;
+    globalState_.gn_ = globalState_.qbn_ * filterState.qbn_.inverse() * filterState.gn_;
   }
 
   void undistortPcl(ScanPtr scan) {
@@ -1181,7 +1182,9 @@ class StateEstimator {
     Q4D R21xyz = axis2Quat(s * phi);
     R21xyz.normalized();
     V3D T112xyz = s * linState_.rn_;
-    V3D P1xyz = R21xyz * P2xyz + T112xyz;
+    // V3D P1xyz = R21xyz * P2xyz + T112xyz;
+    // Add extrinsic parameters
+    V3D P1xyz = INIT_RBL.inverse() * (R21xyz * (INIT_RBL * P2xyz + INIT_TBL) + T112xyz - INIT_TBL);
 
     po->x = P1xyz.x();
     po->y = P1xyz.y();
@@ -1198,11 +1201,14 @@ class StateEstimator {
     Q4D R21xyz = axis2Quat(s * phi);
     R21xyz.normalized();
     V3D T112xyz = s * linState_.rn_;
-    V3D P1xyz = R21xyz * P2xyz + T112xyz;
+    // V3D P1xyz = R21xyz * P2xyz + T112xyz;
+    // Add extrinsic parameters
+    V3D P1xyz = INIT_RBL.inverse() * (R21xyz * (INIT_RBL * P2xyz + INIT_TBL) + T112xyz - INIT_TBL);
 
     R21xyz = linState_.qbn_;
     T112xyz = linState_.rn_;
-    P2xyz = R21xyz.inverse() * (P1xyz - T112xyz);
+    // P2xyz = R21xyz.inverse() * (P1xyz - T112xyz);
+    P2xyz = INIT_RBL.inverse() * (R21xyz.inverse() * ((INIT_RBL * P1xyz + INIT_TBL) - T112xyz) - INIT_TBL);
 
     po->x = P2xyz.x();
     po->y = P2xyz.y();

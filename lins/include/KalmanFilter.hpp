@@ -202,8 +202,8 @@ class StatePredictor {
       Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = -state_tmp.qbn_.toRotationMatrix();
       Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = M3D::Identity();
       Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = M3D::Identity();
-      G_inkef = Gt;     // Used in imu motion model test
-      Gt = Gt * dt;
+      G_inekf = Gt;     // Used in imu motion model test
+      //Gt = Gt * dt;
 
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
@@ -211,7 +211,7 @@ class StatePredictor {
 
       // jacobian_ = F * jacobian_;
       covariance_ =
-          F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose();
+          F_ * covariance_ * F_.transpose() + dt * Gt * noise_ * Gt.transpose();
       covariance_ = 0.5 * (covariance_ + covariance_.transpose()).eval();
     }
 
@@ -224,7 +224,8 @@ class StatePredictor {
 
   static void calculateRPfromIMU(const V3D& acc, double& roll, double& pitch) {
     pitch = -sign(acc.z()) * asin(acc.x() / G0);
-    roll = sign(acc.z()) * asin(acc.y() / G0);
+    //roll = sign(acc.z()) * asin(acc.y() / G0);
+    roll = atan(acc.y() / acc.z());
   }
 
   void set(const GlobalState& state) { state_ = state; }
@@ -383,8 +384,8 @@ class StatePredictor {
 
       state_.rn_.setZero();
       state_.vn_ = state_.qbn_.inverse() * state_.vn_;
-      state_.qbn_.setIdentity();
       state_.gn_ = state_.qbn_.inverse() * state_.gn_;
+      state_.qbn_.setIdentity();
       state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm();
       // initializeCovariance(1);
     }
@@ -416,7 +417,7 @@ class StatePredictor {
   bool flag_init_imu_;
 
   Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_>
-      G_inkef;
+      G_inekf;
 };
 
 };  // namespace filter

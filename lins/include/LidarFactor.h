@@ -1,6 +1,7 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 #include <eigen3/Eigen/Dense>
+#include <parameters.h>
 
 struct LidarEdgeFactor
 {
@@ -14,6 +15,9 @@ struct LidarEdgeFactor
 		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
 		Eigen::Matrix<T, 3, 1> lpa{T(last_point_a.x()), T(last_point_a.y()), T(last_point_a.z())};
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
+
+        Eigen::Matrix<T, 3, 1> Tbl{T(INIT_TBL.x()), T(INIT_TBL.y()), T(INIT_TBL.z())};
+        Eigen::Quaternion<T> Rbl = INIT_RBL.cast<T>();
 
         Eigen::Matrix<T, 18, 1> delta_x;
         for (size_t i = 0; i < 18; ++i) {
@@ -44,7 +48,7 @@ struct LidarEdgeFactor
         */
 
         Eigen::Matrix<T, 3, 1> t_last_curr = T(s) * nominal_rn;
-        Eigen::Matrix<T, 3, 1> lp = q_last_curr * cp + t_last_curr;
+        Eigen::Matrix<T, 3, 1> lp = Rbl.inverse() * (q_last_curr * (Rbl * cp + Tbl) + t_last_curr - Tbl);
 
 		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);
 		Eigen::Matrix<T, 3, 1> de = lpa - lpb;
@@ -86,6 +90,9 @@ struct LidarPlaneFactor
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
 		Eigen::Matrix<T, 3, 1> lpc{T(last_point_c.x()), T(last_point_c.y()), T(last_point_c.z())};
 
+        Eigen::Matrix<T, 3, 1> Tbl{T(INIT_TBL.x()), T(INIT_TBL.y()), T(INIT_TBL.z())};
+        Eigen::Quaternion<T> Rbl = INIT_RBL.cast<T>();
+
         Eigen::Matrix<T, 18, 1> delta_x;
         for (size_t i = 0; i < 18; ++i) {
             delta_x(i, 0) = dx[i];
@@ -115,7 +122,7 @@ struct LidarPlaneFactor
         */
 
         Eigen::Matrix<T, 3, 1> t_last_curr = T(s) * nominal_rn;
-        Eigen::Matrix<T, 3, 1> lp = q_last_curr * cp + t_last_curr;
+        Eigen::Matrix<T, 3, 1> lp = Rbl.inverse() * (q_last_curr * (Rbl * cp + Tbl) + t_last_curr - Tbl);
         Eigen::Matrix<T, 3, 1> M = (lpa - lpb).cross(lpa - lpc);
         residual[0] = ((lp - lpa).transpose() * M).norm() / (M.norm() * T(cov));
 		return true;

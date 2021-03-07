@@ -327,7 +327,7 @@ void stateTransitionTest::testInEKF() {
       error_state.middleRows(9, 3) = trueState_.ba_ - nominalState_.ba_;
       error_state.middleRows(12, 3) = trueState_.bw_ - nominalState_.bw_;
       error_state.middleRows(15, 3) = trueState_.gn_ - nominalState_.gn_;
-      error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inkef * imuData_cur->noise_;
+      error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inekf * imuData_cur->noise_;
 
       // Calculate the increment of the error state and compare with next frame
       if (cnt_ > 1) {
@@ -348,6 +348,7 @@ void stateTransitionTest::testInEKF() {
       t += 1.0 / imu_frequency;
       cnt_++;
     }
+
   }
 
   // Save simulation data 
@@ -417,7 +418,7 @@ void stateTransitionTest::imuCallback(const sensor_msgs::ImuConstPtr& imuMsg) {
     error_state.middleRows(9, 3) = nominalState_.bw_ - trueState_.bw_;
     error_state.middleRows(12, 3) = nominalState_.ba_ - trueState_.ba_;
     error_state.middleRows(15, 3) = nominalState_.gn_ - trueState_.gn_;
-    error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inkef * error_noise;
+    error_state_dot = nominalFilter_->F_inekf * error_state + nominalFilter_->G_inekf * error_noise;
 
     // Calculate the increment of the error state and compare with next frame
     if (cnt_ > 1) {
