@@ -122,6 +122,14 @@ void LinsFusion::mapOdometryCallback(
 }
 
 void LinsFusion::imuCallback(const sensor_msgs::Imu::ConstPtr& imuMsg) {
+  // static tf
+  static tf::TransformBroadcaster tfCameraInit2Map;
+  static tf::Transform camera_init_to_map = tf::Transform(tf::createQuaternionFromRPY(1.570795, 0.0, 1.570795), tf::Vector3(0, 0, 0));
+  tfCameraInit2Map.sendTransform(tf::StampedTransform(camera_init_to_map, imuMsg->header.stamp, "/camera_init", "/map"));
+  static tf::TransformBroadcaster tfBaselink2Camera;
+  static tf::Transform base_link_to_camera = tf::Transform(tf::createQuaternionFromRPY(0.0, -1.570795, -1.570795), tf::Vector3(0, 0, 0));
+  tfBaselink2Camera.sendTransform(tf::StampedTransform(base_link_to_camera, imuMsg->header.stamp, "/base_link", "/camera"));
+  
   // Align IMU measurements from IMU frame to vehicle frame
   // two frames share same roll and pitch angles, but with a small
   // misalign-angle in the yaw direction

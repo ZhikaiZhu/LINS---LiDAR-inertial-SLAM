@@ -9,8 +9,8 @@ imu_misalign_angle: 0.0
 line_num: 16 
 scan_num: 1800
 scan_period: 0.1
-edge_threshold: 0.5
-surf_threshold: 0.5
+edge_threshold: 0.1
+surf_threshold: 0.1
 nearest_feature_search_sq_dist: 25
 verbose: 0
 icp_freq: 1
@@ -20,7 +20,7 @@ lidar_scale: 1
 lidar_std: 0.01
 voxel_size: 0.2
 use_ceres: 1
-loss_threshold: 0.5
+loss_threshold: 10
 ceres_max_iter: 2
 
 # topic names
