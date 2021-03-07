@@ -52,6 +52,7 @@ PCL_INSTANTIATE(Search, PCL_POINT_TYPES)
 #include <gtsam/slam/PriorFactor.h>
 #include <math_utils.h>
 #include <parameters.h>
+#include <fstream>
 
 #include <eigen3/Eigen/Dense>
 
@@ -774,6 +775,20 @@ class MappingHandler {
     odomAftMapped.twist.twist.linear.y = transformBefMapped[4];
     odomAftMapped.twist.twist.linear.z = transformBefMapped[5];
     pubOdomAftMapped.publish(odomAftMapped);
+
+    ofstream foutC("/home/zhikaizhu/output/lio_mapped.csv", ios::app);
+    foutC.setf(ios::fixed, ios::floatfield);
+    foutC.precision(10);
+    foutC << odomAftMapped.header.stamp.toSec()<< " ";
+    foutC.precision(5);
+    foutC << odomAftMapped.pose.pose.position.x << " "
+            << odomAftMapped.pose.pose.position.y << " "
+            << odomAftMapped.pose.pose.position.z << " "
+            << odomAftMapped.pose.pose.orientation.w << " "
+            << odomAftMapped.pose.pose.orientation.x << " "
+            << odomAftMapped.pose.pose.orientation.y << " "
+            << odomAftMapped.pose.pose.orientation.z << endl;
+    foutC.close();
 
     aftMappedTrans.stamp_ = ros::Time().fromSec(timeLaserOdometry);
     aftMappedTrans.setRotation(

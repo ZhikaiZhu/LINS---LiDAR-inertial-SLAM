@@ -9,8 +9,8 @@ imu_misalign_angle: 0.0
 line_num: 16 
 scan_num: 1800
 scan_period: 0.1
-edge_threshold: 0.5
-surf_threshold: 0.5
+edge_threshold: 0.1
+surf_threshold: 0.1
 nearest_feature_search_sq_dist: 25
 verbose: 0
 icp_freq: 1
@@ -20,13 +20,13 @@ lidar_scale: 1
 lidar_std: 0.01
 voxel_size: 0.2
 use_ceres: 1
-loss_threshold: 1.0
+loss_threshold: 20 #
 ceres_max_iter: 2
 pure_imu: 0
 
 # topic names
-imu_topic: "/imu_correct" 
-lidar_topic: "/points_raw"
+imu_topic: "/lips_sim/data_imu" #"/imu_raw" 
+lidar_topic: "/lips_sim/data_cloud" #"/points_raw"
 lidar_odometry_topic: "/laser_odom_to_init"
 lidar_mapping_topic: "/integrated_to_init"
 
@@ -94,6 +94,6 @@ init_rbl: !!opencv-matrix
            0, 1, 0, 
            0, 0, 1]
 
-
-
-
+# scale set to 1
+# accuracy
+# timing

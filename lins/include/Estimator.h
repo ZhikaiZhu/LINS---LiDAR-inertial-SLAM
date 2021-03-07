@@ -47,6 +47,8 @@
 
 #include "cloud_msgs/cloud_info.h"
 
+#include <fstream>
+
 using namespace std;
 using namespace Eigen;
 using namespace math_utils;

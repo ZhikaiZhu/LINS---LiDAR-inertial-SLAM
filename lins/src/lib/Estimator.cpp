@@ -269,6 +269,7 @@ void LinsFusion::performStateEstimation() {
     double time_total = ts_total.toc();
     duration_ = (duration_ * scan_counter_ + time_total) / (scan_counter_ + 1);
     scan_counter_++;
+    ROS_INFO_STREAM("scan_counter_: " << scan_counter_);
     // ROS_INFO_STREAM("Pure-odometry processing time: " << duration_);
     publishTopics();
 
@@ -293,6 +294,19 @@ void LinsFusion::alignIMUtoVehicle(const V3D& rpy, const V3D& acc_in,
 }
 
 void LinsFusion::publishOdometryYZX(double timeStamp) {
+  ofstream foutC("/home/zhikaizhu/output/lio.csv", ios::app);
+  foutC.setf(ios::fixed, ios::floatfield);
+  foutC.precision(10);
+  foutC << ros::Time().fromSec(timeStamp).toSec()<< " ";
+  foutC.precision(5);
+  foutC << estimator->globalStateYZX_.rn_[0] << " "
+        << estimator->globalStateYZX_.rn_[1] << " "
+        << estimator->globalStateYZX_.rn_[2] << " "
+        << estimator->globalStateYZX_.qbn_.w() << " "
+        << estimator->globalStateYZX_.qbn_.x() << " "
+        << estimator->globalStateYZX_.qbn_.y() << " "
+        << estimator->globalStateYZX_.qbn_.z() << endl;
+  foutC.close();
   laserOdometry.header.frame_id = "/camera_init";
   laserOdometry.child_frame_id = "/laser_odom";
   laserOdometry.header.stamp = ros::Time().fromSec(timeStamp);

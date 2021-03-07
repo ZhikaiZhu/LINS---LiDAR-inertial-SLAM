@@ -287,7 +287,7 @@ class StateEstimator {
                              outlierPointCloud);
     undistortPcl(scan_new_);
     calculateSmoothness(scan_new_);
-    markOccludedPoints(scan_new_);
+    //markOccludedPoints(scan_new_);
     extractFeatures(scan_new_);
     imu_last_ = imu;
     double time_fea = ts_fea.toc();
@@ -438,7 +438,7 @@ class StateEstimator {
     if (scan_new_->cornerPointsLessSharp_->points.size() <= 5 ||
         scan_new_->surfPointsLessFlat_->points.size() <= 10) {
       ROS_WARN("Insufficient features...State estimation fails.");
-      return false;
+      //return false;
     }
 
     // Update states
@@ -452,7 +452,7 @@ class StateEstimator {
     // directly solve more accurate roll and pitch angles to correct the global
     // state
     calculateRPfromGravity(filter_->state_.gn_, roll, pitch);
-    correctRollPitch(roll, pitch);
+    //correctRollPitch(roll, pitch);
 
     // Undistort point cloud using estimated relative transform
     updatePointCloud();
@@ -739,6 +739,9 @@ class StateEstimator {
       }
       double relTime =
           (ori - segInfo->startOrientation) / segInfo->orientationDiff;
+      if (relTime < 0.0) {
+        relTime += 1.0;
+      }
       point.intensity =
           int(distPointCloud->points[i].intensity) + SCAN_PERIOD * relTime;
 
@@ -836,8 +839,7 @@ class StateEstimator {
         for (int k = ep; k >= sp; k--) {
           int ind = scan->cloudSmoothness_[k].ind;
           if (scan->cloudNeighborPicked_[ind] == 0 &&
-              scan->cloudCurvature_[ind] > EDGE_THRESHOLD &&
-              segInfo->segmentedCloudGroundFlag[ind] == false) {
+              scan->cloudCurvature_[ind] > EDGE_THRESHOLD) { //&&segInfo->segmentedCloudGroundFlag[ind] == false
             largestPickedNum++;
             if (largestPickedNum <= 2) {
               scan->cloudLabel_[ind] = 2;
@@ -875,8 +877,7 @@ class StateEstimator {
         for (int k = sp; k <= ep; k++) {
           int ind = scan->cloudSmoothness_[k].ind;
           if (scan->cloudNeighborPicked_[ind] == 0 &&
-              scan->cloudCurvature_[ind] < SURF_THRESHOLD &&
-              segInfo->segmentedCloudGroundFlag[ind] == true) {
+              scan->cloudCurvature_[ind] < SURF_THRESHOLD ) { //&&segInfo->segmentedCloudGroundFlag[ind] == true
             scan->cloudLabel_[ind] = -1;
             scan->surfPointsFlat_->push_back(
                 scan->undistPointCloud_->points[ind]);

@@ -83,3 +83,6 @@ target_link_libraries(jacobian_test ${LINK_LIBS})
 
 add_executable(quaternion_test src/quaternion_test.cpp ${SOURCE_FILES})
 target_link_libraries(quaternion_test ${LINK_LIBS})
+
+add_executable(publish_gt src/publish_gt.cpp ${SOURCE_FILES})
+target_link_libraries(publish_gt ${LINK_LIBS})
