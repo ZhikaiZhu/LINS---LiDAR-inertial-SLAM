@@ -250,6 +250,12 @@ class MappingHandler {
   float cRoll, sRoll, cPitch, sPitch, cYaw, sYaw, tX, tY, tZ;
   float ctRoll, stRoll, ctPitch, stPitch, ctYaw, stYaw, tInX, tInY, tInZ;
 
+  std::string RESULT_PATH;
+
+  int cnt = 0;
+  double cornerPoints = 0.0;
+  double surfPoints = 0.0;
+
  public:
   MappingHandler(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh(nh), pnh(pnh) {
     ISAM2Params parameters;
@@ -305,6 +311,10 @@ class MappingHandler {
 
     aftMappedXYZTrans.frame_id_ = "/map";
     aftMappedXYZTrans.child_frame_id_ = "/aft_xyz_mapped";
+
+    RESULT_PATH = OUTPUT_FOLDER + "/lio_mapped.csv";
+    std::ofstream fout(RESULT_PATH, std::ios::out);
+    fout.close();
 
     allocateMemory();
   }
@@ -774,6 +784,20 @@ class MappingHandler {
     odomAftMapped.twist.twist.linear.y = transformBefMapped[4];
     odomAftMapped.twist.twist.linear.z = transformBefMapped[5];
     pubOdomAftMapped.publish(odomAftMapped);
+
+    std::ofstream loop_path_file(RESULT_PATH, std::ios::app);
+		loop_path_file.setf(std::ios::fixed, std::ios::floatfield);
+		loop_path_file.precision(10);
+		loop_path_file << odomAftMapped.header.stamp.toSec() << " ";
+		loop_path_file.precision(5);
+		loop_path_file << odomAftMapped.pose.pose.position.x << " "
+						       << odomAftMapped.pose.pose.position.y << " "
+						       << odomAftMapped.pose.pose.position.z << " "
+						       << odomAftMapped.pose.pose.orientation.w << " "
+						       << odomAftMapped.pose.pose.orientation.x << " "
+						       << odomAftMapped.pose.pose.orientation.y << " "
+						       << odomAftMapped.pose.pose.orientation.z << std::endl;
+		loop_path_file.close();
 
     aftMappedTrans.stamp_ = ros::Time().fromSec(timeLaserOdometry);
     aftMappedTrans.setRotation(
@@ -1328,6 +1352,8 @@ class MappingHandler {
     downSizeFilterSurf.setInputCloud(laserCloudSurfFromMap);
     downSizeFilterSurf.filter(*laserCloudSurfFromMapDS);
     laserCloudSurfFromMapDSNum = laserCloudSurfFromMapDS->points.size();
+
+    printf("Mapped corner and surf size: %d %d \n", laserCloudCornerFromMapDSNum, laserCloudSurfFromMapDSNum);
   }
 
   void downsampleCurrentScan() {
@@ -1340,6 +1366,12 @@ class MappingHandler {
     downSizeFilterSurf.setInputCloud(laserCloudSurfLast);
     downSizeFilterSurf.filter(*laserCloudSurfLastDS);
     laserCloudSurfLastDSNum = laserCloudSurfLastDS->points.size();
+
+    // Calcualte features
+    cnt++;
+    cornerPoints += laserCloudCornerLastDSNum;
+    surfPoints += laserCloudSurfLastDSNum;
+    printf("Map input (DS) corner and surf points size: %f %f \n", cornerPoints / cnt, surfPoints / cnt);
 
     laserCloudOutlierLastDS->clear();
     downSizeFilterOutlier.setInputCloud(laserCloudOutlierLast);
@@ -1871,8 +1903,7 @@ int main(int argc, char** argv) {
 
   parameter::readParameters(pnh);
 
-  MappingHandler mappingHandler(nh, pnh);
-  ;
+  MappingHandler mappingHandler(nh, pnh); 
 
   std::thread loopthread(&MappingHandler::loopClosureThread, &mappingHandler);
   std::thread visualizeMapThread(&MappingHandler::visualizeGlobalMapThread,

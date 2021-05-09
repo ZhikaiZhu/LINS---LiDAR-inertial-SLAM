@@ -21,6 +21,7 @@
 #include <math.h>
 #include <nav_msgs/Odometry.h>
 #include <pcl/common/common.h>
+#include <pcl/pcl_macros.h>
 #include <pcl/filters/filter.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/kdtree/kdtree_flann.h>
@@ -133,6 +134,8 @@ extern std::string LIDAR_TOPIC;
 extern std::string LIDAR_ODOMETRY_TOPIC;
 extern std::string LIDAR_MAPPING_TOPIC;
 
+extern std::string OUTPUT_FOLDER;
+
 // !@KALMAN_FILTER
 extern double ACC_N;
 extern double ACC_W;
@@ -156,6 +159,7 @@ extern double VOXEL_SIZE;
 extern int USE_CERES;
 extern double LOSS_THRESHOLD;
 extern int CERES_MAX_ITER;
+extern int PURE_IMU;
 
 void readParameters(ros::NodeHandle& n);
 

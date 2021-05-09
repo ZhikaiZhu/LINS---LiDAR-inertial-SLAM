@@ -390,13 +390,13 @@ class StateEstimator {
     V3D pl;
     Q4D ql;
     V3D v0, v1, ba0, bw0;
-    ba0.setZero();
+    v0.setZero(), v1.setZero();
+    ba0.setZero(), bw0.setZero();
     ql = preintegration_->delta_q;
     pl = preintegration_->delta_p +
-         0.5 * linState_.gn_ * preintegration_->sum_dt *
-             preintegration_->sum_dt -
-         0.5 * ba0 * preintegration_->sum_dt * preintegration_->sum_dt;
+         0.5 * linState_.gn_ * preintegration_->sum_dt * preintegration_->sum_dt;
     estimateTransform(scan_last_, scan_new_, pl, ql);
+    //estimateTransformWithCeres(scan_last_, scan_new_, pl, ql);
 
     // Calculate initial state using relative transform calculated by point
     // clouds and that by IMU preintegration
@@ -491,11 +491,13 @@ class StateEstimator {
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
         
-        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
-                                      jacobianCoffSurfs, iter, &problem, &nominalState);
-        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
-                                        jacobianCoffCorns, iter, &problem, &nominalState);
-                                        
+        if (!PURE_IMU) {
+          findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                        jacobianCoffSurfs, iter, &problem, &nominalState);
+          findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                          jacobianCoffCorns, iter, &problem, &nominalState);
+        }
+
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         double initial_cost = summary.initial_cost;
@@ -545,11 +547,13 @@ class StateEstimator {
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
         
-        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
-                                      jacobianCoffSurfs, 10, &problem, &nominalState);
-        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
-                                        jacobianCoffCorns, 10, &problem, &nominalState);
-                                        
+        if (!PURE_IMU) {
+          findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                        jacobianCoffSurfs, 10, &problem, &nominalState);
+          findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                          jacobianCoffCorns, 10, &problem, &nominalState);
+        }
+
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
         ceres::Covariance::Options cov_options;
@@ -696,7 +700,7 @@ class StateEstimator {
   void calculateRPfromGravity(const V3D& fbib, double& roll, double& pitch) {
     pitch = -sign(fbib.z()) * asin(fbib.x() / G0);
     // roll = sign(fbib.z()) * asin(fbib.y() / G0);
-    roll = atan(fbib.y() / fbib.z());
+    roll = atan2(fbib.y(), fbib.z());
   }
 
   // Update the gloabl state by the new relative transformation
@@ -750,6 +754,7 @@ class StateEstimator {
 
   void calculateSmoothness(ScanPtr scan) {
     int cloudSize = scan->undistPointCloud_->points.size();
+    printf("Total points size: %d \n", cloudSize);
     cloud_msgs::cloud_info::Ptr segInfo = scan->cloudInfo_;
     for (int i = 5; i < cloudSize - 5; i++) {
       double diffRange = segInfo->segmentedCloudRange[i - 5] +
@@ -838,8 +843,8 @@ class StateEstimator {
         for (int k = ep; k >= sp; k--) {
           int ind = scan->cloudSmoothness_[k].ind;
           if (scan->cloudNeighborPicked_[ind] == 0 &&
-              scan->cloudCurvature_[ind] > EDGE_THRESHOLD &&
-              segInfo->segmentedCloudGroundFlag[ind] == false) {
+              scan->cloudCurvature_[ind] > EDGE_THRESHOLD && 
+              segInfo->segmentedCloudGroundFlag[ind] == false) { // 
             largestPickedNum++;
             if (largestPickedNum <= 2) {
               scan->cloudLabel_[ind] = 2;
@@ -877,8 +882,8 @@ class StateEstimator {
         for (int k = sp; k <= ep; k++) {
           int ind = scan->cloudSmoothness_[k].ind;
           if (scan->cloudNeighborPicked_[ind] == 0 &&
-              scan->cloudCurvature_[ind] < SURF_THRESHOLD &&
-              segInfo->segmentedCloudGroundFlag[ind] == true) {
+              scan->cloudCurvature_[ind] < SURF_THRESHOLD && 
+              segInfo->segmentedCloudGroundFlag[ind] == true) { // 
             scan->cloudLabel_[ind] = -1;
             scan->surfPointsFlat_->push_back(
                 scan->undistPointCloud_->points[ind]);
@@ -927,6 +932,12 @@ class StateEstimator {
       pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount, 
       ceres::Problem* problem = nullptr, GlobalState* nominalState = nullptr) {
     int surfPointsFlatNum = newScan->surfPointsFlat_->points.size();
+
+    // calculate feature points
+    ++surf_cnt;
+    surfPoints += newScan->surfPointsFlat_->points.size();
+    surfPointsLess += newScan->surfPointsLessFlat_->points.size();
+    printf("Odom surf points size: %f %f \n", surfPoints / surf_cnt, surfPointsLess / surf_cnt);
 
     for (int i = 0; i < surfPointsFlatNum; i++) {
       PointType pointSel;
@@ -1061,6 +1072,12 @@ class StateEstimator {
       pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount, 
       ceres::Problem * problem = nullptr, GlobalState* nominalState = nullptr) {
     int cornerPointsSharpNum = newScan->cornerPointsSharp_->points.size();
+
+    // calculate feature points
+    ++corner_cnt;
+    cornerPoints += newScan->cornerPointsSharp_->points.size();
+    cornerPointsLess += newScan->cornerPointsLessSharp_->points.size();
+    printf("Odom corner points size: %f %f \n", cornerPoints / corner_cnt, cornerPointsLess / corner_cnt);
 
     for (int i = 0; i < cornerPointsSharpNum; i++) {
       PointType pointSel;
@@ -1274,6 +1291,92 @@ class StateEstimator {
       kdtreeCorner_->setInputCloud(scan_new_->cornerPointsLessSharp_);
       kdtreeSurf_->setInputCloud(scan_new_->surfPointsLessFlat_);
     }
+  }
+
+  // Use ceres to estimate transform between first scan and second scan
+  void estimateTransformWithCeres(ScanPtr lastScan, ScanPtr newScan, V3D& t, Q4D& q) {
+    linState_.rn_ = t;
+    linState_.qbn_ = q;
+    double residualNorm = 1e6;
+    bool hasConverged = false;
+    bool hasDiverged = false;
+    const unsigned int DIM_OF_STATE = GlobalState::DIM_OF_STATE_;
+    for (size_t i= 0; i < DIM_OF_STATE; ++i) {
+      para_error_state[i] = 0;
+    }
+    GlobalState nominalState = filter_->state_;
+    nominalState.rn_ = t;
+    nominalState.qbn_ = q;
+    Eigen::Map<Eigen::Matrix<double, DIM_OF_STATE, 1>> errorState(para_error_state);
+    Eigen::Matrix<double, DIM_OF_STATE, 1> last_errorState = errorState;
+    ceres::Solver::Options options;
+    options.max_solver_time_in_seconds = 0.04;
+    options.max_num_iterations = CERES_MAX_ITER;
+    options.linear_solver_type = ceres::DENSE_QR;
+    for (int iter = 0; iter < NUM_ITER / 2 && !hasConverged && !hasDiverged;
+        iter++) {
+        ceres::Problem problem;
+        
+        findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
+                                      jacobianCoffSurfs, iter, &problem, &nominalState);
+        if (keypointSurfs_->points.size() < 10) {
+          ROS_WARN("Insufficient matched surfs...");
+          continue;
+        }
+        findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
+                                        jacobianCoffCorns, iter, &problem, &nominalState);
+        if (keypointCorns_->points.size() < 5) {
+          ROS_WARN("Insufficient matched corners...");
+          continue;
+        }
+                                        
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+        double initial_cost = summary.initial_cost;
+        double final_cost = summary.final_cost;
+        // sanity check
+        bool hasNaN = false;
+        for (int i = 0; i < errorState.size(); i++) {
+          if (isnan(errorState[i])) {
+            errorState[i] = 0;
+            hasNaN = true;
+          }
+        }
+        if (hasNaN == true) {
+          ROS_WARN("System initialization diverges Because of NaN...");
+          hasDiverged = true;
+          break;
+        }
+
+        // convergence check
+        if (final_cost > initial_cost * 10) {
+          ROS_WARN("System initialization diverges...");
+          hasDiverged = true;
+          break;
+        }
+
+        Eigen::Matrix<double, 18, 1> incremental_errorState = errorState - last_errorState;
+        if (incremental_errorState.norm() <= 1e-2) {
+          hasConverged = true;
+        }
+
+        //nominalState.boxPlus(errorState, linState_);
+        nominalState.boxPlusInv(errorState, linState_);
+        last_errorState = errorState;
+
+        if (hasConverged) {
+          ROS_INFO_STREAM("System Converges after " << iter << " iterations");
+          t = linState_.rn_;
+          q = linState_.qbn_;
+          break;
+        }
+      }
+
+      if (hasDiverged == true) {
+        ROS_WARN("======Initialization using ICP Method======");
+        estimateTransform(scan_last_, scan_new_, t, q);
+      } 
+
   }
 
   void estimateTransform(ScanPtr lastScan, ScanPtr newScan, V3D& t, Q4D& q) {
@@ -1622,6 +1725,10 @@ class StateEstimator {
   GlobalState globalStateYZX_;
 
   double para_error_state[18];
+
+  int corner_cnt = 0, surf_cnt = 0;
+  double cornerPoints = 0.0, cornerPointsLess = 0.0;
+  double surfPoints = 0.0, surfPointsLess = 0.0;
 };
 
 }  // namespace fusion

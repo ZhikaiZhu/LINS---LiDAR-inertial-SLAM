@@ -89,6 +89,10 @@ void LinsFusion::initialization() {
 
   ROS_INFO_STREAM("Subscribe to \033[1;32m---->\033[0m " << IMU_TOPIC);
   ROS_INFO_STREAM("Subscribe to \033[1;32m---->\033[0m " << LIDAR_TOPIC);
+
+  RESULT_PATH = OUTPUT_FOLDER + "/lio.csv";
+  std::ofstream fout(RESULT_PATH, std::ios::out);
+  fout.close();
 }
 
 void LinsFusion::laserCloudCallback(
@@ -311,6 +315,20 @@ void LinsFusion::publishOdometryYZX(double timeStamp) {
   laserOdometry.pose.pose.position.y = estimator->globalStateYZX_.rn_[1];
   laserOdometry.pose.pose.position.z = estimator->globalStateYZX_.rn_[2];
   pubLaserOdometry.publish(laserOdometry);
+
+  std::ofstream lio_path_file(RESULT_PATH, std::ios::app);
+	lio_path_file.setf(std::ios::fixed, std::ios::floatfield);
+	lio_path_file.precision(10);
+	lio_path_file << laserOdometry.header.stamp.toSec() << " ";
+	lio_path_file.precision(5);
+	lio_path_file << laserOdometry.pose.pose.position.x << " "
+						    << laserOdometry.pose.pose.position.y << " "
+						    << laserOdometry.pose.pose.position.z << " "
+						    << laserOdometry.pose.pose.orientation.w << " "
+						    << laserOdometry.pose.pose.orientation.x << " "
+						    << laserOdometry.pose.pose.orientation.y << " "
+						    << laserOdometry.pose.pose.orientation.z << std::endl;
+  lio_path_file.close();
 
   tf::TransformBroadcaster tfBroadcaster;
   tf::StampedTransform laserOdometryTrans;

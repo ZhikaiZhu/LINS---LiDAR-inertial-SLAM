@@ -52,6 +52,8 @@ std::string LIDAR_TOPIC;
 std::string LIDAR_ODOMETRY_TOPIC;
 std::string LIDAR_MAPPING_TOPIC;
 
+std::string OUTPUT_FOLDER;
+
 // !@KALMAN_FILTER
 double ACC_N;
 double ACC_W;
@@ -75,6 +77,7 @@ double VOXEL_SIZE;
 int USE_CERES;
 double LOSS_THRESHOLD;
 int CERES_MAX_ITER;
+int PURE_IMU;
 
 template <typename T>
 T readParam(ros::NodeHandle& n, std::string name) {
@@ -118,6 +121,7 @@ void readParameters(ros::NodeHandle& n) {
   fsSettings["lidar_topic"] >> LIDAR_TOPIC;
   fsSettings["lidar_odometry_topic"] >> LIDAR_ODOMETRY_TOPIC;
   fsSettings["lidar_mapping_topic"] >> LIDAR_MAPPING_TOPIC;
+  fsSettings["output_path"] >> OUTPUT_FOLDER;
 
   ACC_N = fsSettings["acc_n"];
   ACC_W = fsSettings["acc_w"];

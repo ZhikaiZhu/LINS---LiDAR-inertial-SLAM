@@ -159,6 +159,7 @@ class LinsFusion {
   int sample_counter_;
   bool isInititialized;
   bool isImuCalibrated;
+  std::string RESULT_PATH;
 };
 }  // namespace fusion
 

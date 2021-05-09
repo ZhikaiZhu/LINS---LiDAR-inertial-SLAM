@@ -9,8 +9,8 @@ imu_misalign_angle: 0.0
 line_num: 16 
 scan_num: 1800
 scan_period: 0.1
-edge_threshold: 0.1
-surf_threshold: 0.1
+edge_threshold: 0.5
+surf_threshold: 0.5
 nearest_feature_search_sq_dist: 25
 verbose: 0
 icp_freq: 1
@@ -20,8 +20,9 @@ lidar_scale: 1
 lidar_std: 0.01
 voxel_size: 0.2
 use_ceres: 1
-loss_threshold: 10
+loss_threshold: 0.1
 ceres_max_iter: 2
+pure_imu: 1
 
 # topic names
 #imu_topic: "/imu/data"
@@ -30,12 +31,13 @@ imu_topic: "/lips_sim/data_imu"
 lidar_topic: "/lips_sim/data_cloud"
 lidar_odometry_topic: "/laser_odom_to_init"
 lidar_mapping_topic: "/integrated_to_init"
+output_path: "/home/spc/output"
 
 # noice parameters
-acc_n: 70000
-gyr_n: 0.1
-acc_w: 500
-gyr_w: 0.05
+acc_n: 3.9939570888238808e-03
+gyr_n: 1.5636343949698187e-03
+acc_w: 6.4356659353532566e-05
+gyr_w: 3.5640318696367613e-05
 
 init_pos_std: !!opencv-matrix
    rows: 3
@@ -72,13 +74,13 @@ init_ba: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [-0.015774,0.143237,-0.0263845]
+   data: [0.0, 0.0, 0.0]
    
 init_bw: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [-0.00275058,-0.000165954,0.00262913]
+   data: [0.0, 0.0, 0.0]
    
 # extrinsic parameters
 init_tbl: !!opencv-matrix

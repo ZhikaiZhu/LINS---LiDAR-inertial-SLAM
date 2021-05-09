@@ -296,7 +296,8 @@ class ImageProjection {
       segMsg.startRingIndex[i] = sizeOfSegCloud - 1 + 5;
 
       for (size_t j = 0; j < SCAN_NUM; ++j) {
-        if (labelMat.at<int>(i, j) > 0 || groundMat.at<int8_t>(i, j) == 1) {
+        //if (pcl::isFinite(fullCloud->points[j + i * SCAN_NUM])) {
+        if (labelMat.at<int>(i, j) >= 0 || groundMat.at<int8_t>(i, j) == 1) {
           if (labelMat.at<int>(i, j) == 999999) {
             if (i > groundScanInd && j % 5 == 0) {
               outlierCloud->push_back(fullCloud->points[j + i * SCAN_NUM]);
@@ -307,7 +308,7 @@ class ImageProjection {
           }
           if (groundMat.at<int8_t>(i, j) == 1) {
             if (j % 5 != 0 && j > 5 && j < SCAN_NUM - 5) continue;
-          }
+          } 
           segMsg.segmentedCloudGroundFlag[sizeOfSegCloud] =
               (groundMat.at<int8_t>(i, j) == 1);
           segMsg.segmentedCloudColInd[sizeOfSegCloud] = j;

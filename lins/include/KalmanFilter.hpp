@@ -160,50 +160,51 @@ class StatePredictor {
     if (update_jacobian_) {
       /*
       MXD Ft =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
-
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =
-          -state_tmp.qbn_.toRotationMatrix() * skew(acc - state_tmp.ba_);
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =
-          -state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
-
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::att_) =
-          - skew(gyr - state_tmp.bw_);
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
-
-      MXD Gt =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
-      Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
-      Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();
-      Gt.block<3, 3>(GlobalState::gyr_, 9) = M3D::Identity();
-      Gt = Gt * dt;
+          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);      
       */
 
       // Calculate F and G of InEKF
       MXD Ft =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
-      Ft.block<3, 3>(GlobalState::pos_, GlobalState::gyr_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) = skew(state_tmp.gn_);
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) = -state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gyr_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
-      Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -state_tmp.qbn_.toRotationMatrix();
-      F_inekf = Ft;     // Used in imu motion model test
-
+            MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
       MXD Gt =
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
-      Gt.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::vel_, GlobalState::pos_) = -state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::vel_, GlobalState::vel_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = -state_tmp.qbn_.toRotationMatrix();
-      Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = M3D::Identity();
-      Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = M3D::Identity();
-      G_inekf = Gt;     // Used in imu motion model test
-      //Gt = Gt * dt;
+            MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
+      if (USE_CERES) {
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::gyr_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) = skew(state_tmp.gn_);
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) = -state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gyr_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -state_tmp.qbn_.toRotationMatrix();
+        F_inekf = Ft;     // Used in imu motion model test
+
+        Gt.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = -skew(state_tmp.rn_) * state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::vel_, GlobalState::pos_) = -state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::vel_, GlobalState::vel_) = -skew(state_tmp.vn_) * state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::att_, GlobalState::vel_) = -state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::acc_, GlobalState::att_) = M3D::Identity();
+        Gt.block<3, 3>(GlobalState::gyr_, GlobalState::acc_) = M3D::Identity();
+        G_inekf = Gt;     // Used in imu motion model test
+        //Gt = Gt * dt;
+      } else {
+        Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
+
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =
+            -state_tmp.qbn_.toRotationMatrix() * skew(acc - state_tmp.ba_);
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =
+            -state_tmp.qbn_.toRotationMatrix();
+        Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
+
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::att_) =
+            - skew(gyr - state_tmp.bw_);
+        Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
+
+        Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
+        Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
+        Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();
+        Gt.block<3, 3>(GlobalState::gyr_, 9) = M3D::Identity();
+        //Gt = Gt * dt;
+      }
 
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
@@ -225,7 +226,7 @@ class StatePredictor {
   static void calculateRPfromIMU(const V3D& acc, double& roll, double& pitch) {
     pitch = -sign(acc.z()) * asin(acc.x() / G0);
     //roll = sign(acc.z()) * asin(acc.y() / G0);
-    roll = atan(acc.y() / acc.z());
+    roll = atan2(acc.y(), acc.z());
   }
 
   void set(const GlobalState& state) { state_ = state; }
@@ -298,10 +299,16 @@ class StatePredictor {
     V3D covAcc = INIT_ACC_STD.array().square();
     V3D covGyr = INIT_GYR_STD.array().square();
 
+    /*
     double peba = pow(ACC_N * ug, 2);
     double pebg = pow(GYR_N * dph, 2);
     double pweba = pow(ACC_W * ugpsHz, 2);
-    double pwebg = pow(GYR_W * dpsh, 2);
+    double pwebg = pow(GYR_W * dpsh, 2); */
+
+    double peba = pow(ACC_N, 2);
+    double pebg = pow(GYR_N, 2);
+    double pweba = pow(ACC_W, 2);
+    double pwebg = pow(GYR_W, 2);
     V3D gra_cov(0.01, 0.01, 0.01);
 
     if (type == 0) {
