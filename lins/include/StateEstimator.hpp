@@ -395,7 +395,7 @@ class StateEstimator {
     ql = preintegration_->delta_q;
     pl = preintegration_->delta_p +
          0.5 * linState_.gn_ * preintegration_->sum_dt * preintegration_->sum_dt;
-    estimateTransform(scan_last_, scan_new_, pl, ql);
+    //estimateTransform(scan_last_, scan_new_, pl, ql);
     //estimateTransformWithCeres(scan_last_, scan_new_, pl, ql);
 
     // Calculate initial state using relative transform calculated by point
@@ -542,7 +542,7 @@ class StateEstimator {
         filterState.qbn_ = q;
         filter_->update(filterState, Pk_);
       } 
-      else {       
+      else {    
         ceres::Problem problem;
         ceres::CostFunction *prior_factor = PriorFactor::Create(Pk_);
         problem.AddResidualBlock(prior_factor, nullptr, para_error_state);
@@ -700,7 +700,7 @@ class StateEstimator {
   void calculateRPfromGravity(const V3D& fbib, double& roll, double& pitch) {
     pitch = -sign(fbib.z()) * asin(fbib.x() / G0);
     // roll = sign(fbib.z()) * asin(fbib.y() / G0);
-    roll = atan2(fbib.y(), fbib.z());
+    roll = atan(fbib.y() / fbib.z());
   }
 
   // Update the gloabl state by the new relative transformation
